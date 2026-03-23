@@ -1,0 +1,1 @@
+[![Maintainability](https://qlty.sh/gh/kinraku/projects/shoestore/maintainability.svg)](https://qlty.sh/gh/kinraku/projects/shoestore)
