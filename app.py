@@ -69,15 +69,42 @@ def validate_product_data(data):
         errors.append("Производитель обязателен")
     if not data.get("supplier_id"):
         errors.append("Поставщик обязателен")
-    if not data.get("price") or float(data["price"]) < 0:
-        errors.append("Цена должна быть неотрицательной")
+
+    # Обработка цены с проверкой на число
+    price_str = data.get("price")
+    if not price_str:
+        errors.append("Цена обязательна")
+    else:
+        try:
+            price = float(price_str)
+            if price < 0:
+                errors.append("Цена должна быть неотрицательной")
+        except ValueError:
+            errors.append("Цена должна быть числом")
+
     if not data.get("unit"):
         errors.append("Единица измерения обязательна")
-    if not data.get("stock_quantity") or int(data["stock_quantity"]) < 0:
-        errors.append("Количество на складе не может быть отрицательным")
+
+    # Обработка количества с проверкой на число
+    stock_str = data.get("stock_quantity")
+    if not stock_str:
+        errors.append("Количество на складе обязательно")
+    else:
+        try:
+            stock = int(stock_str)
+            if stock < 0:
+                errors.append("Количество на складе не может быть отрицательным")
+        except ValueError:
+            errors.append("Количество на складе должно быть целым числом")
+
     discount = data.get("discount")
-    if discount and (float(discount) < 0 or float(discount) > 100):
-        errors.append("Скидка должна быть от 0 до 100")
+    if discount:
+        try:
+            discount_val = float(discount)
+            if discount_val < 0 or discount_val > 100:
+                errors.append("Скидка должна быть от 0 до 100")
+        except ValueError:
+            errors.append("Скидка должна быть числом")
     return errors
 
 
@@ -115,8 +142,8 @@ def validate_order_data(data, exclude_unique_check=False):
             errors.append("Номер заказа должен быть числом")
         else:
             if (
-                not exclude_unique_check
-                and Order.query.filter_by(order_number=order_number).first()
+                    not exclude_unique_check
+                    and Order.query.filter_by(order_number=order_number).first()
             ):
                 errors.append("Заказ с таким номером уже существует")
 
@@ -190,6 +217,8 @@ def login():
 
 @app.route("/logout")
 def logout():
+    # Сбрасываем флаг редактирования при выходе
+    session.pop("editing_product_id", None)
     session.clear()
     flash("Вы вышли из системы", "info")
     return redirect(url_for("login"))
@@ -244,6 +273,8 @@ def filter_products():
                     Product.article.ilike(f"%{word}%"),
                     Product.manufacturer.has(Manufacturer.name.ilike(f"%{word}%")),
                     Product.supplier.has(Supplier.name.ilike(f"%{word}%")),
+                    # Добавляем поиск по категории
+                    Product.category.has(Category.name.ilike(f"%{word}%")),
                 )
                 conditions.append(word_condition)
             query = query.filter(db.and_(*conditions))
@@ -332,12 +363,12 @@ def add_product():
             article=article,
             name=data["name"],
             unit=data["unit"],
-            price=data["price"],
+            price=float(data["price"]),
             supplier_id=data["supplier_id"],
             manufacturer_id=data["manufacturer_id"],
             category_id=data["category_id"],
-            discount=data["discount"] or 0,
-            stock_quantity=data["stock_quantity"] or 0,
+            discount=float(data["discount"]) if data["discount"] else 0,
+            stock_quantity=int(data["stock_quantity"]),
             description=request.form.get("description"),
             photo=photo_filename,
         )
@@ -373,6 +404,12 @@ def add_product():
 def edit_product(id):
     if session.get("role") != "Администратор":
         flash("Доступ запрещен", "error")
+        return redirect(url_for("products"))
+
+    # Защита от открытия нескольких окон редактирования
+    editing_product_id = session.get("editing_product_id")
+    if editing_product_id and editing_product_id != id:
+        flash("Нельзя открыть более одного окна редактирования. Сначала закройте текущее редактирование.", "error")
         return redirect(url_for("products"))
 
     product = Product.query.get_or_404(id)
@@ -415,13 +452,15 @@ def edit_product(id):
         product.description = request.form.get("description")
         product.manufacturer_id = data["manufacturer_id"]
         product.supplier_id = data["supplier_id"]
-        product.price = data["price"]
+        product.price = float(data["price"])
         product.unit = data["unit"]
-        product.stock_quantity = data["stock_quantity"]
-        product.discount = data["discount"] or 0
+        product.stock_quantity = int(data["stock_quantity"])
+        product.discount = float(data["discount"]) if data["discount"] else 0
 
         try:
             db.session.commit()
+            # Сбрасываем флаг после успешного сохранения
+            session.pop("editing_product_id", None)
             flash("Товар успешно обновлен", "success")
             return redirect(url_for("products"))
         except Exception as e:
@@ -436,6 +475,8 @@ def edit_product(id):
                 title="Редактирование товара",
             )
 
+    # Устанавливаем флаг при GET-запросе на редактирование
+    session["editing_product_id"] = id
     return render_template(
         "add_edit_product.html",
         product=product,
@@ -466,6 +507,9 @@ def delete_product(id):
     try:
         db.session.delete(product)
         db.session.commit()
+        # Если удаляемый товар редактировался, сбрасываем флаг
+        if session.get("editing_product_id") == id:
+            session.pop("editing_product_id", None)
         flash("Товар успешно удален", "success")
     except Exception as e:
         db.session.rollback()
@@ -683,3 +727,4 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+    
