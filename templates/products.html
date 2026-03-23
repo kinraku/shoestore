@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+
+{% block title %}Список товаров{% endblock %}
+
+{% block content %}
+<h1>Список товаров</h1>
+
+{% if is_admin %}
+    <div class="add-product-btn">
+        <a href="{{ url_for('add_product') }}" class="btn btn-primary">➕ Добавить товар</a>
+    </div>
+{% endif %}
+
+{% if can_filter %}
+<div class="filters">
+    <div class="search-box">
+        <input type="text" id="search-input" placeholder="Поиск по наименованию, артикулу, описанию..." autocomplete="off">
+    </div>
+    <div class="supplier-filter">
+        <select id="supplier-select">
+            <option value="all">Все поставщики</option>
+            {% for supplier in suppliers %}
+                <option value="{{ supplier.id }}">{{ supplier.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="sort-buttons">
+        <button id="sort-asc" class="sort-btn">Сортировка по количеству (возрастание)</button>
+        <button id="sort-desc" class="sort-btn">Сортировка по количеству (убывание)</button>
+    </div>
+</div>
+{% endif %}
+
+<div id="products-container">
+    {% include 'product_cards.html' %}
+</div>
+
+<script>
+    function updateProducts() {
+        const search = document.getElementById('search-input') ? document.getElementById('search-input').value : '';
+        const supplierId = document.getElementById('supplier-select') ? document.getElementById('supplier-select').value : '';
+        let sort = '';
+        if (document.getElementById('sort-asc') && document.getElementById('sort-asc').classList.contains('active')) {
+            sort = 'asc';
+        } else if (document.getElementById('sort-desc') && document.getElementById('sort-desc').classList.contains('active')) {
+            sort = 'desc';
+        }
+        const params = new URLSearchParams();
+        if (search) params.append('search', search);
+        if (supplierId && supplierId !== 'all') params.append('supplier_id', supplierId);
+        if (sort) params.append('sort', sort);
+
+        fetch(`{{ url_for('filter_products') }}?${params.toString()}`)
+            .then(response => response.text())
+            .then(html => {
+                document.getElementById('products-container').innerHTML = html;
+            })
+            .catch(err => console.error('Error loading products:', err));
+    }
+
+    {% if can_filter %}
+    const searchInput = document.getElementById('search-input');
+    const supplierSelect = document.getElementById('supplier-select');
+    const sortAscBtn = document.getElementById('sort-asc');
+    const sortDescBtn = document.getElementById('sort-desc');
+
+    let debounceTimeout;
+    searchInput.addEventListener('input', () => {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(updateProducts, 300);
+    });
+
+    supplierSelect.addEventListener('change', updateProducts);
+
+    sortAscBtn.addEventListener('click', () => {
+        sortAscBtn.classList.add('active');
+        sortDescBtn.classList.remove('active');
+        updateProducts();
+    });
+
+    sortDescBtn.addEventListener('click', () => {
+        sortDescBtn.classList.add('active');
+        sortAscBtn.classList.remove('active');
+        updateProducts();
+    });
+    {% endif %}
+</script>
+{% endblock %}

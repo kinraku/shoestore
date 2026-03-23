@@ -1,0 +1,14 @@
+version: "2"
+plugins:
+  flake8:
+    enabled: true
+    config:
+      max_line_length: 100
+  pylint:
+    enabled: true
+    config:
+      max_line_length: 100
+exclude_patterns:
+  - "venv/"
+  - "static/"
+  - "migrations/"

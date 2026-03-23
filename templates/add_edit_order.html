@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h1>{{ title }}</h1>
+    <form method="POST">
+        <div class="form-group">
+            <label for="order_number">Номер заказа *</label>
+            <input type="number" id="order_number" name="order_number" value="{{ order.order_number if order else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="items">Артикулы товаров *</label>
+            <textarea id="items" name="items" rows="3" placeholder="Пример: А112Т4,2;F635R4,2" required>{{ items_str }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="status">Статус заказа *</label>
+            <select id="status" name="status" required>
+                <option value="">Выберите статус</option>
+                <option value="Новый" {% if order and order.status == 'Новый' %}selected{% endif %}>Новый</option>
+                <option value="В обработке" {% if order and order.status == 'В обработке' %}selected{% endif %}>В обработке</option>
+                <option value="Отправлен" {% if order and order.status == 'Отправлен' %}selected{% endif %}>Отправлен</option>
+                <option value="Доставлен" {% if order and order.status == 'Доставлен' %}selected{% endif %}>Доставлен</option>
+                <option value="Завершен" {% if order and order.status == 'Завершен' %}selected{% endif %}>Завершен</option>
+                <option value="Отменен" {% if order and order.status == 'Отменен' %}selected{% endif %}>Отменен</option>
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="pickup_point_id">Адрес пункта выдачи *</label>
+            <select id="pickup_point_id" name="pickup_point_id" required>
+                <option value="">Выберите пункт выдачи</option>
+                {% for point in pickup_points %}
+                    <option value="{{ point.id }}" {% if order and order.pickup_point_id == point.id %}selected{% endif %}>
+                        {{ point.address }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group half">
+                <label for="order_date">Дата заказа *</label>
+                <input type="date" id="order_date" name="order_date" value="{{ order.order_date.strftime('%Y-%m-%d') if order and order.order_date else '' }}" required>
+            </div>
+            <div class="form-group half">
+                <label for="delivery_date">Дата доставки</label>
+                <input type="date" id="delivery_date" name="delivery_date" value="{{ order.delivery_date.strftime('%Y-%m-%d') if order and order.delivery_date else '' }}">
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <a href="{{ url_for('orders') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

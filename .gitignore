@@ -1,0 +1,48 @@
+# PyCharm
+.idea/
+*.iml
+*.iws
+*.ipr
+.idea_modules/
+out/
+
+# Virtual environment
+venv/
+env/
+ENV/
+.venv
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.python-version
+
+# Flask
+instance/
+.webassets-cache
+.env
+.flaskenv
+*.db
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/

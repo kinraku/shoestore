@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Вход в систему{% endblock %}
+{% block content %}
+<div class="login-container">
+    <h1>Вход в систему</h1>
+    <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="login">Логин</label>
+            <input type="text" id="login" name="login">
+        </div>
+        <div class="form-group">
+            <label for="password">Пароль</label>
+            <input type="password" id="password" name="password">
+        </div>
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Войти</button>
+            <button type="submit" name="guest" value="guest" class="btn btn-secondary">Войти как гость</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

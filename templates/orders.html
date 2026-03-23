@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}Заказы{% endblock %}
+
+{% block content %}
+<h1>Заказы</h1>
+
+{% if is_admin %}
+    <div class="add-order-btn">
+        <a href="{{ url_for('add_order') }}" class="btn btn-primary">➕ Добавить заказ</a>
+    </div>
+{% endif %}
+
+<div class="orders-grid">
+    {% for order in orders %}
+    <div class="order-card">
+        <div class="order-card-left">
+            <div class="order-number">Номер заказа: {{ order.order_number }}</div>
+            <div class="order-items">
+                {% for item in order.items %}
+                    <div>{{ item.product.article }}, {{ item.quantity }}</div>
+                {% endfor %}
+            </div>
+            <div class="order-status">Статус заказа: {{ order.status }}</div>
+            <div class="order-address">Адрес пункта выдачи: {{ order.pickup_point.address if order.pickup_point else '' }}</div>
+            <div class="order-date">Дата заказа: {{ order.order_date.strftime('%d.%m.%Y') if order.order_date else '' }}</div>
+        </div>
+        <div class="order-card-right">
+            {% if order.delivery_date %}
+                <div class="delivery-square">
+                    {{ order.delivery_date.strftime('%d.%m.%Y') }}
+                </div>
+            {% else %}
+                <div class="delivery-square empty">Не указана</div>
+            {% endif %}
+            {% if is_admin %}
+                <div class="admin-buttons">
+                    <a href="{{ url_for('edit_order', id=order.id) }}" class="btn-edit">✏️</a>
+                    <form method="POST" action="{{ url_for('delete_order', id=order.id) }}" style="display:inline;">
+                        <button type="submit" class="btn-delete" onclick="return confirm('Удалить заказ? Это действие необратимо.');">🗑️</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="no-orders">Нет заказов для отображения</div>
+    {% endfor %}
+</div>
+{% endblock %}

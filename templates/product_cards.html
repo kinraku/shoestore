@@ -1,0 +1,51 @@
+<div class="products-grid">
+    {% for product in products %}
+    <div class="product-card">
+        <div class="product-card-left">
+            <img src="{{ product.photo_path }}" alt="{{ product.name }}" class="product-card-image">
+        </div>
+        <div class="product-card-middle">
+            <div class="product-category-name">
+                <span class="product-category">{{ product.category.name if product.category else '' }}</span>
+                <span class="separator">|</span>
+                <span class="product-name">{{ product.name }}</span>
+            </div>
+            <div class="product-description">{{ product.description or '' }}</div>
+            <div class="product-details">
+                <div><strong>Производитель:</strong> {{ product.manufacturer.name if product.manufacturer else '' }}</div>
+                <div><strong>Поставщик:</strong> {{ product.supplier.name if product.supplier else '' }}</div>
+                <div class="product-price">
+                    <strong>Цена:</strong>
+                    {% if product.has_discount %}
+                        <span class="old-price">{{ "%.2f"|format(product.price) }}</span>
+                        <span class="new-price">{{ "%.2f"|format(product.discounted_price) }}</span>
+                    {% else %}
+                        <span class="regular-price">{{ "%.2f"|format(product.price) }}</span>
+                    {% endif %}
+                </div>
+                <div><strong>Единица измерения:</strong> {{ product.unit }}</div>
+                <div class="quantity-line {% if product.out_of_stock %}out-of-stock-line{% endif %}">
+                    <strong>Количество на складе:</strong> {{ product.stock_quantity }}
+                </div>
+            </div>
+        </div>
+        <div class="product-card-right">
+            {% if product.discount > 0 %}
+                <div class="discount-square {% if product.discount_above_15 %}high-discount-square{% endif %}">
+                    {{ product.discount }}%
+                </div>
+            {% endif %}
+            {% if is_admin %}
+                <div class="admin-buttons">
+                    <a href="{{ url_for('edit_product', id=product.id) }}" class="btn-edit">✏️</a>
+                    <form method="POST" action="{{ url_for('delete_product', id=product.id) }}" style="display:inline;">
+                        <button type="submit" class="btn-delete" onclick="return confirm('Удалить товар? Это действие необратимо.');">🗑️</button>
+                    </form>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="no-products">Нет товаров для отображения</div>
+    {% endfor %}
+</div>

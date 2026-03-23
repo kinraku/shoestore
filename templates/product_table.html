@@ -1,0 +1,27 @@
+{% for product in products %}
+<tr 
+    {% if product.out_of_stock %}class="out-of-stock"{% elif product.discount_above_15 %}class="high-discount"{% endif %}
+>
+    <td><img src="{{ product.photo_path }}" alt="{{ product.name }}" class="product-image"></td>
+    <td>{{ product.name }}</td>
+    <td>{{ product.category.name if product.category else '' }}</td>
+    <td>{{ product.description or '' }}</td>
+    <td>{{ product.manufacturer.name if product.manufacturer else '' }}</td>
+    <td>{{ product.supplier.name if product.supplier else '' }}</td>
+    <td class="price-cell">
+        {% if product.has_discount %}
+            <span class="old-price">{{ "%.2f"|format(product.price) }}</span>
+            <span class="new-price">{{ "%.2f"|format(product.discounted_price) }}</span>
+        {% else %}
+            <span class="regular-price">{{ "%.2f"|format(product.price) }}</span>
+        {% endif %}
+    </td>
+    <td>{{ product.unit }}</td>
+    <td>{{ product.stock_quantity }}</td>
+    <td>{{ product.discount }}</td>
+</tr>
+{% else %}
+<tr>
+    <td colspan="10">Нет товаров для отображения</td>
+</tr>
+{% endfor %}

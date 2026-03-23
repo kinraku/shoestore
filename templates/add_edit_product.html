@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="form-container">
+    <h1>{{ title }}</h1>
+    <form method="POST" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Наименование товара *</label>
+            <input type="text" id="name" name="name" value="{{ product.name if product else '' }}" required>
+        </div>
+
+        <div class="form-group">
+            <label for="category_id">Категория *</label>
+            <select id="category_id" name="category_id" required>
+                <option value="">Выберите категорию</option>
+                {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if product and product.category_id == cat.id %}selected{% endif %}>
+                        {{ cat.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="description">Описание</label>
+            <textarea id="description" name="description" rows="3">{{ product.description if product else '' }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="manufacturer_id">Производитель *</label>
+            <select id="manufacturer_id" name="manufacturer_id" required>
+                <option value="">Выберите производителя</option>
+                {% for man in manufacturers %}
+                    <option value="{{ man.id }}" {% if product and product.manufacturer_id == man.id %}selected{% endif %}>
+                        {{ man.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label for="supplier_id">Поставщик *</label>
+            <select id="supplier_id" name="supplier_id" required>
+                <option value="">Выберите поставщика</option>
+                {% for sup in suppliers %}
+                    <option value="{{ sup.id }}" {% if product and product.supplier_id == sup.id %}selected{% endif %}>
+                        {{ sup.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group half">
+                <label for="price">Цена *</label>
+                <input type="number" id="price" name="price" step="0.01" min="0" value="{{ product.price if product else '' }}" required>
+            </div>
+            <div class="form-group half">
+                <label for="unit">Единица измерения *</label>
+                <input type="text" id="unit" name="unit" value="{{ product.unit if product else '' }}" required>
+            </div>
+        </div>
+
+        <div class="form-row">
+            <div class="form-group half">
+                <label for="stock_quantity">Количество на складе *</label>
+                <input type="number" id="stock_quantity" name="stock_quantity" min="0" value="{{ product.stock_quantity if product else 0 }}" required>
+            </div>
+            <div class="form-group half">
+                <label for="discount">Действующая скидка (%)</label>
+                <input type="number" id="discount" name="discount" step="0.01" min="0" max="100" value="{{ product.discount if product else 0 }}">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="photo">Фото товара</label>
+            <input type="file" id="photo" name="photo" accept="image/*">
+            {% if product and product.photo and product.photo != 'picture.png' %}
+                <div class="current-photo">
+                    <p>Текущее фото:</p>
+                    <img src="{{ url_for('static', filename='images/' + product.photo) }}" alt="Фото товара" width="100">
+                </div>
+            {% endif %}
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">Сохранить</button>
+            <a href="{{ url_for('products') }}" class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
