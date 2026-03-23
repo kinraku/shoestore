@@ -18,7 +18,9 @@ from sqlalchemy.orm import joinedload
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = "your-secret-key-here"
-app.config["SQLALCHEMY_DATABASE_URI"] = "postgresql://kai:@localhost/shoestoredb"
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
+    "DATABASE_URL", "postgresql://kai:@localhost/shoestoredb"
+)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["UPLOAD_FOLDER"] = os.path.join("static", "images")
 app.config["MAX_CONTENT_LENGTH"] = 5 * 1024 * 1024
@@ -729,4 +731,4 @@ def delete_order(id):
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
-    app.run(debug=True)
+    app.run(host="0.0.0.0", debug=True)

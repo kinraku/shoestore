@@ -1,6 +1,6 @@
-CREATE DATABASE IF NOT EXISTS shoestoredb;
+-- CREATE DATABASE IF NOT EXISTS shoestoredb;
 
-\c shoestoredb;
+-- \c shoestoredb;
 
 CREATE TABLE Роли (
     ID_роли SERIAL PRIMARY KEY,
