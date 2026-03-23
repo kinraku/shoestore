@@ -142,8 +142,8 @@ def validate_order_data(data, exclude_unique_check=False):
             errors.append("Номер заказа должен быть числом")
         else:
             if (
-                    not exclude_unique_check
-                    and Order.query.filter_by(order_number=order_number).first()
+                not exclude_unique_check
+                and Order.query.filter_by(order_number=order_number).first()
             ):
                 errors.append("Заказ с таким номером уже существует")
 
@@ -409,7 +409,10 @@ def edit_product(id):
     # Защита от открытия нескольких окон редактирования
     editing_product_id = session.get("editing_product_id")
     if editing_product_id and editing_product_id != id:
-        flash("Нельзя открыть более одного окна редактирования. Сначала закройте текущее редактирование.", "error")
+        flash(
+            "Нельзя открыть более одного окна редактирования. Сначала закройте текущее редактирование.",
+            "error",
+        )
         return redirect(url_for("products"))
 
     product = Product.query.get_or_404(id)
@@ -727,4 +730,3 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-    
