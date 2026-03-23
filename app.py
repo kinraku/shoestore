@@ -7,7 +7,6 @@ from models import (
     db,
     User,
     Product,
-    Role,
     Supplier,
     Manufacturer,
     Category,
@@ -58,6 +57,87 @@ def save_image(file, old_filename=None):
 
 def generate_article():
     return f"ART-{uuid.uuid4().hex[:8].upper()}"
+
+
+def validate_product_data(data):
+    errors = []
+    if not data.get("name"):
+        errors.append("Наименование товара обязательно")
+    if not data.get("category_id"):
+        errors.append("Категория обязательна")
+    if not data.get("manufacturer_id"):
+        errors.append("Производитель обязателен")
+    if not data.get("supplier_id"):
+        errors.append("Поставщик обязателен")
+    if not data.get("price") or float(data["price"]) < 0:
+        errors.append("Цена должна быть неотрицательной")
+    if not data.get("unit"):
+        errors.append("Единица измерения обязательна")
+    if not data.get("stock_quantity") or int(data["stock_quantity"]) < 0:
+        errors.append("Количество на складе не может быть отрицательным")
+    discount = data.get("discount")
+    if discount and (float(discount) < 0 or float(discount) > 100):
+        errors.append("Скидка должна быть от 0 до 100")
+    return errors
+
+
+def parse_order_items(items_str):
+    items = []
+    if not items_str:
+        return items
+    for part in items_str.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        if "," in part:
+            article, qty = part.split(",", 1)
+            article = article.strip()
+            qty = qty.strip()
+            try:
+                quantity = int(qty)
+            except ValueError:
+                continue
+            if article and quantity > 0:
+                items.append((article, quantity))
+    return items
+
+
+def validate_order_data(data, exclude_unique_check=False):
+    errors = []
+    order_number = None
+    order_number_str = data.get("order_number")
+    if not order_number_str:
+        errors.append("Номер заказа обязателен")
+    else:
+        try:
+            order_number = int(order_number_str)
+        except ValueError:
+            errors.append("Номер заказа должен быть числом")
+        else:
+            if (
+                not exclude_unique_check
+                and Order.query.filter_by(order_number=order_number).first()
+            ):
+                errors.append("Заказ с таким номером уже существует")
+
+    if not data.get("status"):
+        errors.append("Статус заказа обязателен")
+    if not data.get("pickup_point_id"):
+        errors.append("Пункт выдачи обязателен")
+    if not data.get("order_date"):
+        errors.append("Дата заказа обязательна")
+
+    items_str = data.get("items", "")
+    parsed_items = parse_order_items(items_str)
+    if not parsed_items:
+        errors.append(
+            "Неверный формат артикулов. Используйте: артикул,количество; артикул,количество (без пробелов)"
+        )
+    else:
+        for article, _ in parsed_items:
+            if not Product.query.filter_by(article=article).first():
+                errors.append(f'Товар с артикулом "{article}" не найден')
+    return errors, parsed_items, order_number
 
 
 @app.context_processor
@@ -154,7 +234,6 @@ def filter_products():
     )
 
     if search:
-        # Разделяем по пробелам, запятым, точкам
         words = [w for w in re.split(r"[ ,.]+", search) if w]
         if words:
             conditions = []
@@ -169,11 +248,9 @@ def filter_products():
                 conditions.append(word_condition)
             query = query.filter(db.and_(*conditions))
 
-    # Фильтр по поставщику
     if supplier_id and supplier_id != "all":
         query = query.filter(Product.supplier_id == supplier_id)
 
-    # Сортировка
     if sort_by == "asc":
         query = query.order_by(Product.stock_quantity.asc())
     elif sort_by == "desc":
@@ -222,35 +299,17 @@ def add_product():
     suppliers = Supplier.query.all()
 
     if request.method == "POST":
-        name = request.form.get("name")
-        category_id = request.form.get("category_id")
-        description = request.form.get("description")
-        manufacturer_id = request.form.get("manufacturer_id")
-        supplier_id = request.form.get("supplier_id")
-        price = request.form.get("price")
-        unit = request.form.get("unit")
-        stock_quantity = request.form.get("stock_quantity")
-        discount = request.form.get("discount")
-        photo = request.files.get("photo")
-
-        errors = []
-        if not name:
-            errors.append("Наименование товара обязательно")
-        if not category_id:
-            errors.append("Категория обязательна")
-        if not manufacturer_id:
-            errors.append("Производитель обязателен")
-        if not supplier_id:
-            errors.append("Поставщик обязателен")
-        if not price or float(price) < 0:
-            errors.append("Цена должна быть неотрицательной")
-        if not unit:
-            errors.append("Единица измерения обязательна")
-        if not stock_quantity or int(stock_quantity) < 0:
-            errors.append("Количество на складе не может быть отрицательным")
-        if discount and (float(discount) < 0 or float(discount) > 100):
-            errors.append("Скидка должна быть от 0 до 100")
-
+        data = {
+            "name": request.form.get("name"),
+            "category_id": request.form.get("category_id"),
+            "manufacturer_id": request.form.get("manufacturer_id"),
+            "supplier_id": request.form.get("supplier_id"),
+            "price": request.form.get("price"),
+            "unit": request.form.get("unit"),
+            "stock_quantity": request.form.get("stock_quantity"),
+            "discount": request.form.get("discount"),
+        }
+        errors = validate_product_data(data)
         if errors:
             for error in errors:
                 flash(error, "error")
@@ -263,25 +322,23 @@ def add_product():
                 title="Добавление товара",
             )
 
-        photo_filename = None
+        photo = request.files.get("photo")
+        photo_filename = "picture.png"
         if photo and allowed_file(photo.filename):
             photo_filename = save_image(photo)
-        else:
-            photo_filename = "picture.png"
 
         article = generate_article()
-
         new_product = Product(
             article=article,
-            name=name,
-            unit=unit,
-            price=price,
-            supplier_id=supplier_id,
-            manufacturer_id=manufacturer_id,
-            category_id=category_id,
-            discount=discount or 0,
-            stock_quantity=stock_quantity or 0,
-            description=description,
+            name=data["name"],
+            unit=data["unit"],
+            price=data["price"],
+            supplier_id=data["supplier_id"],
+            manufacturer_id=data["manufacturer_id"],
+            category_id=data["category_id"],
+            discount=data["discount"] or 0,
+            stock_quantity=data["stock_quantity"] or 0,
+            description=request.form.get("description"),
             photo=photo_filename,
         )
 
@@ -324,35 +381,17 @@ def edit_product(id):
     suppliers = Supplier.query.all()
 
     if request.method == "POST":
-        name = request.form.get("name")
-        category_id = request.form.get("category_id")
-        description = request.form.get("description")
-        manufacturer_id = request.form.get("manufacturer_id")
-        supplier_id = request.form.get("supplier_id")
-        price = request.form.get("price")
-        unit = request.form.get("unit")
-        stock_quantity = request.form.get("stock_quantity")
-        discount = request.form.get("discount")
-        photo = request.files.get("photo")
-
-        errors = []
-        if not name:
-            errors.append("Наименование товара обязательно")
-        if not category_id:
-            errors.append("Категория обязательна")
-        if not manufacturer_id:
-            errors.append("Производитель обязателен")
-        if not supplier_id:
-            errors.append("Поставщик обязателен")
-        if not price or float(price) < 0:
-            errors.append("Цена должна быть неотрицательной")
-        if not unit:
-            errors.append("Единица измерения обязательна")
-        if not stock_quantity or int(stock_quantity) < 0:
-            errors.append("Количество на складе не может быть отрицательным")
-        if discount and (float(discount) < 0 or float(discount) > 100):
-            errors.append("Скидка должна быть от 0 до 100")
-
+        data = {
+            "name": request.form.get("name"),
+            "category_id": request.form.get("category_id"),
+            "manufacturer_id": request.form.get("manufacturer_id"),
+            "supplier_id": request.form.get("supplier_id"),
+            "price": request.form.get("price"),
+            "unit": request.form.get("unit"),
+            "stock_quantity": request.form.get("stock_quantity"),
+            "discount": request.form.get("discount"),
+        }
+        errors = validate_product_data(data)
         if errors:
             for error in errors:
                 flash(error, "error")
@@ -365,20 +404,21 @@ def edit_product(id):
                 title="Редактирование товара",
             )
 
+        photo = request.files.get("photo")
         if photo and allowed_file(photo.filename):
             new_photo = save_image(photo, product.photo)
             if new_photo:
                 product.photo = new_photo
 
-        product.name = name
-        product.category_id = category_id
-        product.description = description
-        product.manufacturer_id = manufacturer_id
-        product.supplier_id = supplier_id
-        product.price = price
-        product.unit = unit
-        product.stock_quantity = stock_quantity
-        product.discount = discount or 0
+        product.name = data["name"]
+        product.category_id = data["category_id"]
+        product.description = request.form.get("description")
+        product.manufacturer_id = data["manufacturer_id"]
+        product.supplier_id = data["supplier_id"]
+        product.price = data["price"]
+        product.unit = data["unit"]
+        product.stock_quantity = data["stock_quantity"]
+        product.discount = data["discount"] or 0
 
         try:
             db.session.commit()
@@ -414,8 +454,7 @@ def delete_product(id):
 
     product = Product.query.get_or_404(id)
 
-    order_items = OrderItem.query.filter_by(product_id=id).first()
-    if order_items:
+    if OrderItem.query.filter_by(product_id=id).first():
         flash("Невозможно удалить товар, так как он присутствует в заказах", "error")
         return redirect(url_for("products"))
 
@@ -436,29 +475,6 @@ def delete_product(id):
 
 
 # Управление заказами
-def parse_order_items(items_str):
-    """
-    Парсит строку вида "А112Т4,2;F635R4,2"
-    Возвращает список кортежей (article, quantity)
-    """
-    items = []
-    if not items_str:
-        return items
-    for part in items_str.split(";"):
-        part = part.strip()
-        if not part:
-            continue
-        if "," in part:
-            article, qty = part.split(",", 1)
-            article = article.strip()
-            qty = qty.strip()
-            try:
-                quantity = int(qty)
-            except ValueError:
-                continue
-            if article and quantity > 0:
-                items.append((article, quantity))
-    return items
 
 
 @app.route("/orders")
@@ -479,7 +495,6 @@ def orders():
     )
 
     is_admin = role == "Администратор"
-
     return render_template("orders.html", orders=orders_list, is_admin=is_admin)
 
 
@@ -493,48 +508,15 @@ def add_order():
     products = Product.query.all()
 
     if request.method == "POST":
-        order_number_str = request.form.get("order_number")
-        status = request.form.get("status")
-        pickup_point_id = request.form.get("pickup_point_id")
-        order_date = request.form.get("order_date")
-        delivery_date = request.form.get("delivery_date")
-        items_str = request.form.get("items", "")
-
-        # Преобразование номера
-        try:
-            order_number = int(order_number_str)
-        except (TypeError, ValueError):
-            flash("Номер заказа должен быть числом", "error")
-            return render_template(
-                "add_edit_order.html",
-                order=None,
-                pickup_points=pickup_points,
-                products=products,
-                title="Добавление заказа",
-            )
-
-        errors = []
-        if not order_number_str:
-            errors.append("Номер заказа обязателен")
-        else:
-            existing = Order.query.filter_by(order_number=order_number).first()
-            if existing:
-                errors.append("Заказ с таким номером уже существует")
-        if not status:
-            errors.append("Статус заказа обязателен")
-        if not pickup_point_id:
-            errors.append("Пункт выдачи обязателен")
-        if not order_date:
-            errors.append("Дата заказа обязательна")
-        if not items_str:
-            errors.append("Артикулы товаров обязательны")
-
-        # Парсим артикулы
-        parsed_items = parse_order_items(items_str)
-        if not parsed_items:
-            errors.append(
-                "Неверный формат артикулов. Используйте: артикул,количество; артикул,количество (без пробелов)"
-            )
+        data = {
+            "order_number": request.form.get("order_number"),
+            "status": request.form.get("status"),
+            "pickup_point_id": request.form.get("pickup_point_id"),
+            "order_date": request.form.get("order_date"),
+            "delivery_date": request.form.get("delivery_date"),
+            "items": request.form.get("items", ""),
+        }
+        errors, parsed_items, order_number = validate_order_data(data)
 
         if errors:
             for error in errors:
@@ -545,47 +527,28 @@ def add_order():
                 pickup_points=pickup_points,
                 products=products,
                 title="Добавление заказа",
-                items_str=items_str,
+                items_str=data["items"],
             )
-
-        # Проверяем, что все артикулы существуют
-        for article, qty in parsed_items:
-            product = Product.query.filter_by(article=article).first()
-            if not product:
-                flash(f'Товар с артикулом "{article}" не найден', "error")
-                return render_template(
-                    "add_edit_order.html",
-                    order=None,
-                    pickup_points=pickup_points,
-                    products=products,
-                    title="Добавление заказа",
-                    items_str=items_str,
-                )
-
-        pickup_code = f"CODE-{order_number}"
 
         new_order = Order(
             order_number=order_number,
-            order_date=order_date,
-            delivery_date=delivery_date if delivery_date else None,
-            pickup_point_id=pickup_point_id,
+            order_date=data["order_date"],
+            delivery_date=data["delivery_date"] or None,
+            pickup_point_id=data["pickup_point_id"],
             user_id=session["user_id"],
-            pickup_code=pickup_code,
-            status=status,
+            pickup_code=f"CODE-{order_number}",
+            status=data["status"],
         )
 
         try:
             db.session.add(new_order)
-            db.session.flush()  # чтобы получить id заказа
-
-            # Добавляем позиции
+            db.session.flush()
             for article, qty in parsed_items:
                 product = Product.query.filter_by(article=article).first()
                 order_item = OrderItem(
                     order_id=new_order.id, product_id=product.id, quantity=qty
                 )
                 db.session.add(order_item)
-
             db.session.commit()
             flash("Заказ успешно добавлен", "success")
             return redirect(url_for("orders"))
@@ -598,7 +561,7 @@ def add_order():
                 pickup_points=pickup_points,
                 products=products,
                 title="Добавление заказа",
-                items_str=items_str,
+                items_str=data["items"],
             )
 
     return render_template(
@@ -620,55 +583,27 @@ def edit_order(id):
     order = Order.query.get_or_404(id)
     pickup_points = PickupPoint.query.all()
     products = Product.query.all()
-
-    # Формируем строку для существующих позиций
     existing_items_str = ";".join(
         [f"{item.product.article},{item.quantity}" for item in order.items]
     )
 
     if request.method == "POST":
-        order_number_str = request.form.get("order_number")
-        status = request.form.get("status")
-        pickup_point_id = request.form.get("pickup_point_id")
-        order_date = request.form.get("order_date")
-        delivery_date = request.form.get("delivery_date")
-        items_str = request.form.get("items", "")
+        data = {
+            "order_number": request.form.get("order_number"),
+            "status": request.form.get("status"),
+            "pickup_point_id": request.form.get("pickup_point_id"),
+            "order_date": request.form.get("order_date"),
+            "delivery_date": request.form.get("delivery_date"),
+            "items": request.form.get("items", ""),
+        }
+        errors, parsed_items, order_number = validate_order_data(
+            data, exclude_unique_check=True
+        )
 
-        try:
-            order_number = int(order_number_str)
-        except (TypeError, ValueError):
-            flash("Номер заказа должен быть числом", "error")
-            return render_template(
-                "add_edit_order.html",
-                order=order,
-                pickup_points=pickup_points,
-                products=products,
-                title="Редактирование заказа",
-                items_str=items_str,
-            )
-
-        errors = []
-        if not order_number_str:
-            errors.append("Номер заказа обязателен")
-        else:
-            if order_number != order.order_number:
-                existing = Order.query.filter_by(order_number=order_number).first()
-                if existing:
-                    errors.append("Заказ с таким номером уже существует")
-        if not status:
-            errors.append("Статус заказа обязателен")
-        if not pickup_point_id:
-            errors.append("Пункт выдачи обязателен")
-        if not order_date:
-            errors.append("Дата заказа обязательна")
-        if not items_str:
-            errors.append("Артикулы товаров обязательны")
-
-        parsed_items = parse_order_items(items_str)
-        if not parsed_items:
-            errors.append(
-                "Неверный формат артикулов. Используйте: артикул,количество; артикул,количество (без пробелов)"
-            )
+        # Дополнительная проверка уникальности номера при изменении
+        if not errors and order_number and order_number != order.order_number:
+            if Order.query.filter_by(order_number=order_number).first():
+                errors.append("Заказ с таким номером уже существует")
 
         if errors:
             for error in errors:
@@ -679,37 +614,20 @@ def edit_order(id):
                 pickup_points=pickup_points,
                 products=products,
                 title="Редактирование заказа",
-                items_str=items_str,
+                items_str=data["items"],
             )
 
-        # Проверка существования товаров
-        for article, qty in parsed_items:
-            product = Product.query.filter_by(article=article).first()
-            if not product:
-                flash(f'Товар с артикулом "{article}" не найден', "error")
-                return render_template(
-                    "add_edit_order.html",
-                    order=order,
-                    pickup_points=pickup_points,
-                    products=products,
-                    title="Редактирование заказа",
-                    items_str=items_str,
-                )
-
-        # Обновляем заказ
         order.order_number = order_number
-        order.status = status
-        order.pickup_point_id = pickup_point_id
-        order.order_date = order_date
-        order.delivery_date = delivery_date if delivery_date else None
+        order.status = data["status"]
+        order.pickup_point_id = data["pickup_point_id"]
+        order.order_date = data["order_date"]
+        order.delivery_date = data["delivery_date"] or None
 
         try:
-            # Удаляем старые позиции
             for item in order.items:
                 db.session.delete(item)
             db.session.flush()
 
-            # Добавляем новые
             for article, qty in parsed_items:
                 product = Product.query.filter_by(article=article).first()
                 order_item = OrderItem(
@@ -729,7 +647,7 @@ def edit_order(id):
                 pickup_points=pickup_points,
                 products=products,
                 title="Редактирование заказа",
-                items_str=items_str,
+                items_str=data["items"],
             )
 
     return render_template(
